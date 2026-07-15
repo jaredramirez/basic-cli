@@ -1153,6 +1153,43 @@ const _: () = assert!(core::mem::size_of::<AnonStruct93136bf334c2a2fc>() == 4, "
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::align_of::<AnonStruct93136bf334c2a2fc>() == 2, "AnonStruct93136bf334c2a2fc alignment mismatch");
 
+/// Element type for __AnonStruct_e478dc8abc9a36a1
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStructE478dc8abc9a36a1 {
+    pub text: RocStr,
+    pub code: u16,
+    pub column: u16,
+    pub row: u16,
+    pub category: u8,
+    pub kind: u8,
+    pub modifiers: u8,
+}
+
+/// Element type for __AnonStruct_e478dc8abc9a36a1
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct AnonStructE478dc8abc9a36a1 {
+    pub text: RocStr,
+    pub code: u16,
+    pub column: u16,
+    pub row: u16,
+    pub category: u8,
+    pub kind: u8,
+    pub modifiers: u8,
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<AnonStructE478dc8abc9a36a1>() == 40, "AnonStructE478dc8abc9a36a1 size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<AnonStructE478dc8abc9a36a1>() == 8, "AnonStructE478dc8abc9a36a1 alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<AnonStructE478dc8abc9a36a1>() == 24, "AnonStructE478dc8abc9a36a1 size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<AnonStructE478dc8abc9a36a1>() == 4, "AnonStructE478dc8abc9a36a1 alignment mismatch");
+
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4432,6 +4469,81 @@ const _: () = assert!(core::mem::align_of::<HostTtySizeResult>() == 4, "HostTtyS
 #[cfg(target_pointer_width = "32")]
 const _: () = assert!(core::mem::offset_of!(HostTtySizeResult, tag) == 16, "HostTtySizeResult tag offset mismatch");
 
+/// Tag discriminant for Try.
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostTtyReadEventResultTag {
+    Err = 0,
+    Ok = 1,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub union HostTtyReadEventResultPayload {
+    pub err: core::mem::ManuallyDrop<IOErr>,
+    pub ok: core::mem::ManuallyDrop<AnonStructE478dc8abc9a36a1>,
+}
+
+#[cfg(target_pointer_width = "32")]
+#[repr(align(4))]
+#[derive(Clone, Copy)]
+pub struct HostTtyReadEventResultPayloadAlignment;
+
+/// Tag union: Try
+#[cfg(target_pointer_width = "32")]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostTtyReadEventResult {
+    pub _payload_alignment: [HostTtyReadEventResultPayloadAlignment; 0],
+    pub payload: [u8; 24],
+    pub tag: HostTtyReadEventResultTag,
+}
+
+/// Tag union: Try
+#[cfg(not(target_pointer_width = "32"))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostTtyReadEventResult {
+    pub payload: HostTtyReadEventResultPayload,
+    pub tag: HostTtyReadEventResultTag,
+}
+
+impl HostTtyReadEventResult {
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_err(&self) -> IOErr {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const IOErr) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_err(&self) -> IOErr {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.err) }
+    }
+
+    #[cfg(target_pointer_width = "32")]
+    pub fn payload_ok(&self) -> AnonStructE478dc8abc9a36a1 {
+        unsafe { core::ptr::read(self.payload.as_ptr() as *const AnonStructE478dc8abc9a36a1) }
+    }
+
+    #[cfg(not(target_pointer_width = "32"))]
+    pub fn payload_ok(&self) -> AnonStructE478dc8abc9a36a1 {
+        unsafe { core::mem::ManuallyDrop::into_inner(self.payload.ok) }
+    }
+
+}
+
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::size_of::<HostTtyReadEventResult>() == 48, "HostTtyReadEventResult size mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::align_of::<HostTtyReadEventResult>() == 8, "HostTtyReadEventResult alignment mismatch");
+#[cfg(target_pointer_width = "64")]
+const _: () = assert!(core::mem::offset_of!(HostTtyReadEventResult, tag) == 40, "HostTtyReadEventResult tag offset mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::size_of::<HostTtyReadEventResult>() == 28, "HostTtyReadEventResult size mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::align_of::<HostTtyReadEventResult>() == 4, "HostTtyReadEventResult alignment mismatch");
+#[cfg(target_pointer_width = "32")]
+const _: () = assert!(core::mem::offset_of!(HostTtyReadEventResult, tag) == 24, "HostTtyReadEventResult tag offset mismatch");
+
 /// Tag discriminant for OsStr.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -4522,14 +4634,14 @@ const _: () = assert!(core::mem::offset_of!(OsStr, tag) == 12, "OsStr tag offset
 /// Tag discriminant for Try.
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TryType214Tag {
+pub enum TryType221Tag {
     Err = 0,
     Ok = 1,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub union TryType214Payload {
+pub union TryType221Payload {
     pub err: core::mem::ManuallyDrop<i32>,
     pub ok: [u8; 0],
 }
@@ -4537,28 +4649,28 @@ pub union TryType214Payload {
 #[cfg(target_pointer_width = "32")]
 #[repr(align(4))]
 #[derive(Clone, Copy)]
-pub struct TryType214PayloadAlignment;
+pub struct TryType221PayloadAlignment;
 
 /// Tag union: Try
 #[cfg(target_pointer_width = "32")]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType214 {
-    pub _payload_alignment: [TryType214PayloadAlignment; 0],
+pub struct TryType221 {
+    pub _payload_alignment: [TryType221PayloadAlignment; 0],
     pub payload: [u8; 4],
-    pub tag: TryType214Tag,
+    pub tag: TryType221Tag,
 }
 
 /// Tag union: Try
 #[cfg(not(target_pointer_width = "32"))]
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TryType214 {
-    pub payload: TryType214Payload,
-    pub tag: TryType214Tag,
+pub struct TryType221 {
+    pub payload: TryType221Payload,
+    pub tag: TryType221Tag,
 }
 
-impl TryType214 {
+impl TryType221 {
     #[cfg(target_pointer_width = "32")]
     pub fn payload_err(&self) -> i32 {
         unsafe { core::ptr::read(self.payload.as_ptr() as *const i32) }
@@ -4572,17 +4684,17 @@ impl TryType214 {
 }
 
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::size_of::<TryType214>() == 8, "TryType214 size mismatch");
+const _: () = assert!(core::mem::size_of::<TryType221>() == 8, "TryType221 size mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::align_of::<TryType214>() == 4, "TryType214 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<TryType221>() == 4, "TryType221 alignment mismatch");
 #[cfg(target_pointer_width = "64")]
-const _: () = assert!(core::mem::offset_of!(TryType214, tag) == 4, "TryType214 tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(TryType221, tag) == 4, "TryType221 tag offset mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::size_of::<TryType214>() == 8, "TryType214 size mismatch");
+const _: () = assert!(core::mem::size_of::<TryType221>() == 8, "TryType221 size mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::align_of::<TryType214>() == 4, "TryType214 alignment mismatch");
+const _: () = assert!(core::mem::align_of::<TryType221>() == 4, "TryType221 alignment mismatch");
 #[cfg(target_pointer_width = "32")]
-const _: () = assert!(core::mem::offset_of!(TryType214, tag) == 4, "TryType214 tag offset mismatch");
+const _: () = assert!(core::mem::offset_of!(TryType221, tag) == 4, "TryType221 tag offset mismatch");
 
 /// Return type record for Host.env_platform!
 /// Fields ordered by compiler-emitted ABI offsets.
@@ -5113,6 +5225,15 @@ pub struct HostTcpWriteArgs {
     pub arg1: RocListWith<u8, false>,
 }
 
+/// Arguments for Host.tty_read_event!
+/// Roc signature: U64 => Try({ category : U8, code : U16, column : U16, kind : U8, modifiers : U8, row : U16, text : Str }, [TtyErr(IOErr)])
+/// Refcounted fields are owned by the hosted function.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct HostTtyReadEventArgs {
+    pub arg0: u64,
+}
+
 // Platform Type Aliases
 
 pub type HostCmdExecExitCodeArg0 = AnonStruct32ddec9aa3de7110;
@@ -5241,6 +5362,7 @@ pub type HostTcpReadUpToResultTag = HostTcpReadExactlyResultTag;
 pub type HostTtyEnableRawModeResult = HostTtyDisableRawModeResult;
 pub type HostTtyEnableRawModeResultPayload = HostTtyDisableRawModeResultPayload;
 pub type HostTtyEnableRawModeResultTag = HostTtyDisableRawModeResultTag;
+pub type HostTtyReadEventOk = AnonStructE478dc8abc9a36a1;
 pub type HostTtySizeOk = AnonStruct93136bf334c2a2fc;
 pub type MainForHostArg0 = OsStr;
 pub type MainForHostArg0Payload = OsStrPayload;
@@ -7322,6 +7444,68 @@ impl AnonStruct93136bf334c2a2fc {
     }
 }
 
+impl HostTtyReadEventResult {
+    /// Recursively decrement Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted payload.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        let _ = roc_host;
+        match value.tag {
+            HostTtyReadEventResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.decref(roc_host); }
+            },
+            HostTtyReadEventResultTag::Ok => {
+                let payload = value.payload_ok();
+                unsafe { payload.decref(roc_host); }
+            },
+        }
+    }
+
+    /// Increment Roc-owned payloads.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        let _ = amount;
+        match value.tag {
+            HostTtyReadEventResultTag::Err => {
+                let payload = value.payload_err();
+                unsafe { payload.incref(amount); }
+            },
+            HostTtyReadEventResultTag::Ok => {
+                let payload = value.payload_ok();
+                unsafe { payload.incref(amount); }
+            },
+        }
+    }
+}
+
+impl AnonStructE478dc8abc9a36a1 {
+    /// Recursively decrement Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must own one live Roc reference for each refcounted field.
+    pub unsafe fn decref(self, roc_host: &RocHost) {
+        let value = self;
+        unsafe { value.text.decref(roc_host); }
+    }
+
+    /// Increment Roc-owned fields.
+    ///
+    /// # Safety
+    /// `self` must point at live Roc allocations. The retained references must
+    /// be balanced by later decrefs.
+    pub unsafe fn incref(self, amount: isize) {
+        let value = self;
+        unsafe { value.text.incref(amount); }
+    }
+}
+
 impl OsStr {
     /// Recursively decrement Roc-owned payloads.
     ///
@@ -7371,7 +7555,7 @@ impl OsStr {
     }
 }
 
-impl TryType214 {
+impl TryType221 {
     /// Recursively decrement Roc-owned payloads.
     ///
     /// # Safety
@@ -7380,8 +7564,8 @@ impl TryType214 {
         let value = self;
         let _ = roc_host;
         match value.tag {
-            TryType214Tag::Err => {},
-            TryType214Tag::Ok => {},
+            TryType221Tag::Err => {},
+            TryType221Tag::Ok => {},
         }
     }
 
@@ -7394,8 +7578,8 @@ impl TryType214 {
         let value = self;
         let _ = amount;
         match value.tag {
-            TryType214Tag::Err => {},
-            TryType214Tag::Ok => {},
+            TryType221Tag::Err => {},
+            TryType221Tag::Ok => {},
         }
     }
 }
@@ -7657,6 +7841,10 @@ unsafe extern "C" {
     /// Hosted symbol for Host.tty_enable_raw_mode!
     /// Roc signature: {} => Try({}, [TtyErr(IOErr)])
     pub fn hosted_tty_enable_raw_mode() -> HostTtyDisableRawModeResult;
+
+    /// Hosted symbol for Host.tty_read_event!
+    /// Roc signature: U64 => Try({ category : U8, code : U16, column : U16, kind : U8, modifiers : U8, row : U16, text : Str }, [TtyErr(IOErr)])
+    pub fn hosted_tty_read_event(arg0: u64) -> HostTtyReadEventResult;
 
     /// Hosted symbol for Host.tty_size!
     /// Roc signature: {} => Try({ columns : U16, rows : U16 }, [TtyErr(IOErr)])

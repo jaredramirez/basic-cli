@@ -10,6 +10,10 @@ use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crossterm::event::{
+    poll as poll_terminal_event, read as read_terminal_event, Event as CrosstermEvent, KeyCode,
+    KeyEventKind, KeyModifiers, MediaKeyCode, ModifierKeyCode, MouseButton, MouseEventKind,
+};
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
 
 mod cmd;
@@ -905,6 +909,189 @@ fn try_tty_size_err(error: IOErr) -> HostTtySizeResult {
             err: ManuallyDrop::new(error),
         },
         tag: HostTtySizeResultTag::Err,
+    }
+}
+
+fn try_tty_read_event_ok(value: HostTtyReadEventOk) -> HostTtyReadEventResult {
+    HostTtyReadEventResult {
+        payload: HostTtyReadEventResultPayload {
+            ok: ManuallyDrop::new(value),
+        },
+        tag: HostTtyReadEventResultTag::Ok,
+    }
+}
+
+fn try_tty_read_event_err(error: IOErr) -> HostTtyReadEventResult {
+    HostTtyReadEventResult {
+        payload: HostTtyReadEventResultPayload {
+            err: ManuallyDrop::new(error),
+        },
+        tag: HostTtyReadEventResultTag::Err,
+    }
+}
+
+fn tty_raw_event(
+    category: u8,
+    code: u16,
+    column: u16,
+    kind: u8,
+    modifiers: u8,
+    row: u16,
+    text: RocStr,
+) -> HostTtyReadEventOk {
+    HostTtyReadEventOk {
+        text,
+        code,
+        column,
+        row,
+        category,
+        kind,
+        modifiers,
+    }
+}
+
+fn tty_key_code(code: KeyCode) -> (u16, Option<char>) {
+    match code {
+        KeyCode::Backspace => (1, None),
+        KeyCode::Enter => (2, None),
+        KeyCode::Left => (3, None),
+        KeyCode::Right => (4, None),
+        KeyCode::Up => (5, None),
+        KeyCode::Down => (6, None),
+        KeyCode::Home => (7, None),
+        KeyCode::End => (8, None),
+        KeyCode::PageUp => (9, None),
+        KeyCode::PageDown => (10, None),
+        KeyCode::Tab => (11, None),
+        KeyCode::BackTab => (12, None),
+        KeyCode::Delete => (13, None),
+        KeyCode::Insert => (14, None),
+        KeyCode::Char(character) => (15, Some(character)),
+        KeyCode::Null => (16, None),
+        KeyCode::Esc => (17, None),
+        KeyCode::CapsLock => (18, None),
+        KeyCode::ScrollLock => (19, None),
+        KeyCode::NumLock => (20, None),
+        KeyCode::PrintScreen => (21, None),
+        KeyCode::Pause => (22, None),
+        KeyCode::Menu => (23, None),
+        KeyCode::KeypadBegin => (24, None),
+        KeyCode::F(number) => (1000 + u16::from(number), None),
+        KeyCode::Media(media) => (2000 + tty_media_key_code(media), None),
+        KeyCode::Modifier(modifier) => (3000 + tty_modifier_key_code(modifier), None),
+    }
+}
+
+fn tty_media_key_code(code: MediaKeyCode) -> u16 {
+    match code {
+        MediaKeyCode::Play => 1,
+        MediaKeyCode::Pause => 2,
+        MediaKeyCode::PlayPause => 3,
+        MediaKeyCode::Reverse => 4,
+        MediaKeyCode::Stop => 5,
+        MediaKeyCode::FastForward => 6,
+        MediaKeyCode::Rewind => 7,
+        MediaKeyCode::TrackNext => 8,
+        MediaKeyCode::TrackPrevious => 9,
+        MediaKeyCode::Record => 10,
+        MediaKeyCode::LowerVolume => 11,
+        MediaKeyCode::RaiseVolume => 12,
+        MediaKeyCode::MuteVolume => 13,
+    }
+}
+
+fn tty_modifier_key_code(code: ModifierKeyCode) -> u16 {
+    match code {
+        ModifierKeyCode::LeftShift => 1,
+        ModifierKeyCode::LeftControl => 2,
+        ModifierKeyCode::LeftAlt => 3,
+        ModifierKeyCode::LeftSuper => 4,
+        ModifierKeyCode::LeftHyper => 5,
+        ModifierKeyCode::LeftMeta => 6,
+        ModifierKeyCode::RightShift => 7,
+        ModifierKeyCode::RightControl => 8,
+        ModifierKeyCode::RightAlt => 9,
+        ModifierKeyCode::RightSuper => 10,
+        ModifierKeyCode::RightHyper => 11,
+        ModifierKeyCode::RightMeta => 12,
+        ModifierKeyCode::IsoLevel3Shift => 13,
+        ModifierKeyCode::IsoLevel5Shift => 14,
+    }
+}
+
+fn tty_key_kind(kind: KeyEventKind) -> u8 {
+    match kind {
+        KeyEventKind::Press => 1,
+        KeyEventKind::Repeat => 2,
+        KeyEventKind::Release => 3,
+    }
+}
+
+fn tty_mouse_button(button: MouseButton) -> u16 {
+    match button {
+        MouseButton::Left => 1,
+        MouseButton::Right => 2,
+        MouseButton::Middle => 3,
+    }
+}
+
+fn tty_mouse_kind(kind: MouseEventKind) -> (u8, u16) {
+    match kind {
+        MouseEventKind::Down(button) => (1, tty_mouse_button(button)),
+        MouseEventKind::Up(button) => (2, tty_mouse_button(button)),
+        MouseEventKind::Drag(button) => (3, tty_mouse_button(button)),
+        MouseEventKind::Moved => (4, 0),
+        MouseEventKind::ScrollDown => (5, 0),
+        MouseEventKind::ScrollUp => (6, 0),
+        MouseEventKind::ScrollLeft => (7, 0),
+        MouseEventKind::ScrollRight => (8, 0),
+    }
+}
+
+fn tty_modifiers(modifiers: KeyModifiers) -> u8 {
+    modifiers.bits()
+}
+
+#[allow(unreachable_patterns)]
+fn tty_event_from_crossterm(event: CrosstermEvent, roc_host: &RocHost) -> HostTtyReadEventOk {
+    match event {
+        CrosstermEvent::Key(event) => {
+            let (code, character) = tty_key_code(event.code);
+            let text = match character {
+                Some(character) => RocStr::from_str(&character.to_string(), roc_host),
+                None => RocStr::empty(),
+            };
+            tty_raw_event(
+                1,
+                code,
+                0,
+                tty_key_kind(event.kind),
+                tty_modifiers(event.modifiers),
+                0,
+                text,
+            )
+        }
+        CrosstermEvent::Resize(columns, rows) => {
+            tty_raw_event(2, 0, columns, 0, 0, rows, RocStr::empty())
+        }
+        CrosstermEvent::Mouse(event) => {
+            let (kind, button) = tty_mouse_kind(event.kind);
+            tty_raw_event(
+                3,
+                button,
+                event.column,
+                kind,
+                tty_modifiers(event.modifiers),
+                event.row,
+                RocStr::empty(),
+            )
+        }
+        CrosstermEvent::FocusGained => tty_raw_event(4, 0, 0, 0, 0, 0, RocStr::empty()),
+        CrosstermEvent::FocusLost => tty_raw_event(5, 0, 0, 0, 0, 0, RocStr::empty()),
+        CrosstermEvent::Paste(text) => {
+            tty_raw_event(6, 0, 0, 0, 0, 0, RocStr::from_str(&text, roc_host))
+        }
+        _ => tty_raw_event(255, 0, 0, 0, 0, 0, RocStr::empty()),
     }
 }
 
@@ -2065,6 +2252,21 @@ pub extern "C" fn hosted_tty_size() -> HostTtySizeResult {
     match terminal_size() {
         Ok((columns, rows)) => try_tty_size_ok(columns, rows),
         Err(error) => try_tty_size_err(tty_io_err_from_io(&error, roc_host)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tty_read_event(timeout_milliseconds: u64) -> HostTtyReadEventResult {
+    let roc_host = roc_host();
+    let timeout = std::time::Duration::from_millis(timeout_milliseconds);
+
+    match poll_terminal_event(timeout) {
+        Ok(false) => try_tty_read_event_ok(tty_raw_event(0, 0, 0, 0, 0, 0, RocStr::empty())),
+        Ok(true) => match read_terminal_event() {
+            Ok(event) => try_tty_read_event_ok(tty_event_from_crossterm(event, roc_host)),
+            Err(error) => try_tty_read_event_err(tty_io_err_from_io(&error, roc_host)),
+        },
+        Err(error) => try_tty_read_event_err(tty_io_err_from_io(&error, roc_host)),
     }
 }
 

@@ -82,6 +82,7 @@ platform ""
 		"hosted_env_set_cwd": Host.env_set_cwd!,
 		# Terminal additions are appended to preserve existing hosted ABI numbering.
 		"hosted_tty_size": Host.tty_size!,
+		"hosted_tty_read_event": Host.tty_read_event!,
 	}
 	targets: {
 		inputs_dir: "targets/",

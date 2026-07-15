@@ -1,6 +1,7 @@
 import IOErr exposing [IOErr]
 import InternalHttp
 import InternalSqlite
+import InternalTty
 
 ## Declare the hosted effects and ABI-safe data exchanged with the native host.
 Host :: [].{
@@ -123,4 +124,5 @@ Host :: [].{
 	env_dict! : () => List((NativeOsStr, NativeOsStr))
 	env_set_cwd! : NativePath => Try({}, IOErr)
 	tty_size! : () => Try({ columns : U16, rows : U16 }, [TtyErr(IOErr)])
+	tty_read_event! : U64 => Try(InternalTty.RawEvent, [TtyErr(IOErr)])
 }
