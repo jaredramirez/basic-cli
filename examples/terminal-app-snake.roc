@@ -47,9 +47,9 @@ init_snake_len = snake_len(initial_state.snake)
 
 main! : List(OsStr) => Try({}, _)
 main! = |args| {
-	Tty.enable_raw_mode!()
+	Tty.enable_raw_mode!()?
 	game_result = game_loop!(initial_state_from_os_strs(args))
-	Tty.disable_raw_mode!()
+	Tty.disable_raw_mode!()?
 
 	game_result?
 	Stdout.line!("\n--- Game Over ---")?

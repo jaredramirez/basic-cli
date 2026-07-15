@@ -9,13 +9,13 @@ import pf.Tty
 main! : List(OsStr) => Try({}, _)
 main! = |_args| {
 	Stdout.line!("Tty: enabling raw mode")?
-	Tty.enable_raw_mode!()
+	Tty.enable_raw_mode!()?
 
 	Stdout.line!("Press one key...")?
 	input = Stdin.bytes!()
 
 	Stdout.line!("Tty: disabling raw mode")?
-	Tty.disable_raw_mode!()
+	Tty.disable_raw_mode!()?
 
 	bytes = input?
 	Stdout.line!("Read ${bytes.len().to_str()} byte(s).")?

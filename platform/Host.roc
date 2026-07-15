@@ -103,8 +103,8 @@ Host :: [].{
 	tcp_read_until! : TcpStream, U8 => Try(List(U8), Str)
 	tcp_write! : TcpStream, List(U8) => Try({}, Str)
 
-	tty_enable_raw_mode! : () => {}
-	tty_disable_raw_mode! : () => {}
+	tty_enable_raw_mode! : () => Try({}, [TtyErr(IOErr)])
+	tty_disable_raw_mode! : () => Try({}, [TtyErr(IOErr)])
 
 	# TODO(https://github.com/roc-lang/roc/issues/10163): revert to a bare U128
 	# return once the compiler emits the clang/Rust u128 return convention on
@@ -122,4 +122,5 @@ Host :: [].{
 	}
 	env_dict! : () => List((NativeOsStr, NativeOsStr))
 	env_set_cwd! : NativePath => Try({}, IOErr)
+	tty_size! : () => Try({ columns : U16, rows : U16 }, [TtyErr(IOErr)])
 }

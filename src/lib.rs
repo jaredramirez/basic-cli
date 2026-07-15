@@ -10,7 +10,7 @@ use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode};
+use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
 
 mod cmd;
 mod http;
@@ -81,6 +81,10 @@ type StdoutUnitResultTag = HostStdoutLineResultTag;
 type StdoutBytesResult = HostStdoutWriteBytesResult;
 type StdoutBytesResultPayload = HostStdoutWriteBytesResultPayload;
 type StdoutBytesResultTag = HostStdoutWriteBytesResultTag;
+
+type TtyUnitResult = HostTtyEnableRawModeResult;
+type TtyUnitResultPayload = HostTtyEnableRawModeResultPayload;
+type TtyUnitResultTag = HostTtyEnableRawModeResultTag;
 
 pub(crate) type NativeOsStr = UnixBytesOrUtf8OrWindowsU16s;
 type NativeOsStrPayload = UnixBytesOrUtf8OrWindowsU16sPayload;
@@ -234,6 +238,13 @@ define_common_io_err!(
 define_common_io_err!(
     stdout_io_err_from_io,
     stdout_io_err_other,
+    IOErr,
+    IOErrTag,
+    IOErrPayload
+);
+define_common_io_err!(
+    tty_io_err_from_io,
+    tty_io_err_other,
     IOErr,
     IOErrTag,
     IOErrPayload
@@ -860,6 +871,40 @@ fn try_stdout_bytes_err(error: IOErr) -> StdoutBytesResult {
             err: ManuallyDrop::new(error),
         },
         tag: StdoutBytesResultTag::Err,
+    }
+}
+
+fn try_tty_unit_ok() -> TtyUnitResult {
+    TtyUnitResult {
+        payload: TtyUnitResultPayload { ok: [] },
+        tag: TtyUnitResultTag::Ok,
+    }
+}
+
+fn try_tty_unit_err(error: IOErr) -> TtyUnitResult {
+    TtyUnitResult {
+        payload: TtyUnitResultPayload {
+            err: ManuallyDrop::new(error),
+        },
+        tag: TtyUnitResultTag::Err,
+    }
+}
+
+fn try_tty_size_ok(columns: u16, rows: u16) -> HostTtySizeResult {
+    HostTtySizeResult {
+        payload: HostTtySizeResultPayload {
+            ok: ManuallyDrop::new(HostTtySizeOk { columns, rows }),
+        },
+        tag: HostTtySizeResultTag::Ok,
+    }
+}
+
+fn try_tty_size_err(error: IOErr) -> HostTtySizeResult {
+    HostTtySizeResult {
+        payload: HostTtySizeResultPayload {
+            err: ManuallyDrop::new(error),
+        },
+        tag: HostTtySizeResultTag::Err,
     }
 }
 
@@ -1997,13 +2042,30 @@ pub extern "C" fn hosted_stdout_write_bytes(bytes: RocListWith<u8, false>) -> St
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_tty_disable_raw_mode() {
-    let _ = disable_raw_mode();
+pub extern "C" fn hosted_tty_disable_raw_mode() -> TtyUnitResult {
+    let roc_host = roc_host();
+    match disable_raw_mode() {
+        Ok(()) => try_tty_unit_ok(),
+        Err(error) => try_tty_unit_err(tty_io_err_from_io(&error, roc_host)),
+    }
 }
 
 #[no_mangle]
-pub extern "C" fn hosted_tty_enable_raw_mode() {
-    let _ = enable_raw_mode();
+pub extern "C" fn hosted_tty_enable_raw_mode() -> TtyUnitResult {
+    let roc_host = roc_host();
+    match enable_raw_mode() {
+        Ok(()) => try_tty_unit_ok(),
+        Err(error) => try_tty_unit_err(tty_io_err_from_io(&error, roc_host)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tty_size() -> HostTtySizeResult {
+    let roc_host = roc_host();
+    match terminal_size() {
+        Ok((columns, rows)) => try_tty_size_ok(columns, rows),
+        Err(error) => try_tty_size_err(tty_io_err_from_io(&error, roc_host)),
+    }
 }
 
 // TODO(https://github.com/roc-lang/roc/issues/10163): revert to a bare u128

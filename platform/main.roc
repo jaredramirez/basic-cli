@@ -80,6 +80,8 @@ platform ""
 		"hosted_env_platform": Host.env_platform!,
 		"hosted_env_dict": Host.env_dict!,
 		"hosted_env_set_cwd": Host.env_set_cwd!,
+		# Terminal additions are appended to preserve existing hosted ABI numbering.
+		"hosted_tty_size": Host.tty_size!,
 	}
 	targets: {
 		inputs_dir: "targets/",
