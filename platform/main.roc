@@ -83,6 +83,10 @@ platform ""
 		# Terminal additions are appended to preserve existing hosted ABI numbering.
 		"hosted_tty_size": Host.tty_size!,
 		"hosted_tty_read_event": Host.tty_read_event!,
+		"hosted_tty_start": Host.tty_start!,
+		"hosted_tty_stop": Host.tty_stop!,
+		"hosted_tty_stdin_is_terminal": Host.tty_stdin_is_terminal!,
+		"hosted_tty_stdout_is_terminal": Host.tty_stdout_is_terminal!,
 	}
 	targets: {
 		inputs_dir: "targets/",

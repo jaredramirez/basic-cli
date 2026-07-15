@@ -367,7 +367,11 @@
           "name": "quit-command",
           "pty": true,
           "stdin": "q",
-          "contains": ["Game Over"]
+          "contains": [
+            "\u001b[?1049h",
+            "\u001b[?1049l",
+            "Game Over"
+          ]
         }
       ]
     },
@@ -390,13 +394,24 @@
       "reason": "Python standard library has no Windows ConPTY support",
       "cases": [
         {
-          "name": "raw-mode",
+          "name": "full-screen-session",
           "pty": true,
           "stdin": "q",
           "contains": [
-            "Tty: enabling raw mode",
-            "Tty: disabling raw mode",
-            "Read 1 byte(s)."
+            "stdin terminal: True",
+            "stdout terminal: True",
+            "\u001b[?1049h",
+            "\u001b[?25l",
+            "\u001b[?1000h",
+            "\u001b[?1004h",
+            "\u001b[?2004h",
+            "Timed wait completed without input.",
+            "\u001b[?2004l",
+            "\u001b[?1004l",
+            "\u001b[?1000l",
+            "\u001b[?25h",
+            "\u001b[?1049l",
+            "Read typed character: q"
           ]
         }
       ]

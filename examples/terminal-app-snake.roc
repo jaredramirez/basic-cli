@@ -1,8 +1,7 @@
-## Build a small full-screen snake game using terminal raw mode.
+## Build a small full-screen snake game using timed, typed terminal events.
 app [main!] { pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.21.0-rc4/FvCh4vdqm3nBY6DWEfZ8RuGCVfjuMY43HA8KSNk9qVDn.tar.zst" }
 
 import pf.OsStr
-import pf.Stdin
 import pf.Stdout
 import pf.Tty
 
@@ -47,9 +46,9 @@ init_snake_len = snake_len(initial_state.snake)
 
 main! : List(OsStr) => Try({}, _)
 main! = |args| {
-	Tty.enable_raw_mode!()?
+	Tty.start!(Tty.default_session_options)?
 	game_result = game_loop!(initial_state_from_os_strs(args))
-	Tty.disable_raw_mode!()?
+	Tty.stop!()?
 
 	game_result?
 	Stdout.line!("\n--- Game Over ---")?
@@ -71,36 +70,35 @@ game_loop! = |state| {
 	} else {
 		draw_game!(state)?
 
-		input_bytes = Stdin.bytes!()?
-		new_state = update_game(apply_input(state, input_bytes))
+		event = Tty.read_event!(100)?
+		new_state = apply_event(state, event)
 
 		game_loop!(new_state)
 	}
 }
 
-apply_input : GameState, List(U8) -> GameState
-apply_input = |state, input_bytes| {
-	for byte in input_bytes {
-		return apply_input_byte(state, byte)
+apply_event : GameState, [Event(Tty.Event), Timeout] -> GameState
+apply_event = |state, event|
+	match event {
+		Timeout => update_game(state)
+		Event(Key(key)) => update_game(apply_key(state, key.code))
+		Event(_) => state
 	}
 
-	state
-}
-
-apply_input_byte : GameState, U8 -> GameState
-apply_input_byte = |state, byte|
-	if byte == 119 {
-		{ ..state, direction: up }
-	} else if byte == 115 {
-		{ ..state, direction: down }
-	} else if byte == 97 {
-		{ ..state, direction: left }
-	} else if byte == 100 {
-		{ ..state, direction: right }
-	} else if byte == 113 {
-		{ ..state, game_over: Bool.True }
-	} else {
-		state
+apply_key : GameState, Tty.KeyCode -> GameState
+apply_key = |state, key|
+	match key {
+		Up => { ..state, direction: up }
+		Char("w") => { ..state, direction: up }
+		Down => { ..state, direction: down }
+		Char("s") => { ..state, direction: down }
+		Left => { ..state, direction: left }
+		Char("a") => { ..state, direction: left }
+		Right => { ..state, direction: right }
+		Char("d") => { ..state, direction: right }
+		Char("q") => { ..state, game_over: Bool.True }
+		Esc => { ..state, game_over: Bool.True }
+		_ => state
 	}
 
 update_game : GameState -> GameState

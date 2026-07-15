@@ -125,4 +125,15 @@ Host :: [].{
 	env_set_cwd! : NativePath => Try({}, IOErr)
 	tty_size! : () => Try({ columns : U16, rows : U16 }, [TtyErr(IOErr)])
 	tty_read_event! : U64 => Try(InternalTty.RawEvent, [TtyErr(IOErr)])
+	tty_start! : {
+		alternate_screen : Bool,
+		bracketed_paste : Bool,
+		cursor_visible : Bool,
+		focus_change_events : Bool,
+		mouse_capture : Bool,
+		raw_mode : Bool,
+	} => Try({}, [TtyErr(IOErr)])
+	tty_stop! : () => Try({}, [TtyErr(IOErr)])
+	tty_stdin_is_terminal! : () => Bool
+	tty_stdout_is_terminal! : () => Bool
 }

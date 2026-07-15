@@ -7,14 +7,21 @@ use core::mem::ManuallyDrop;
 use std::ffi::CStr;
 use std::ffi::{c_char, c_void, OsStr as StdOsStr, OsString};
 use std::fs;
-use std::io::{self, BufRead, BufReader, Read, Write};
+use std::io::{self, BufRead, BufReader, IsTerminal, Read, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Mutex, MutexGuard};
 
+use crossterm::cursor::{Hide, Show};
 use crossterm::event::{
-    poll as poll_terminal_event, read as read_terminal_event, Event as CrosstermEvent, KeyCode,
-    KeyEventKind, KeyModifiers, MediaKeyCode, ModifierKeyCode, MouseButton, MouseEventKind,
+    poll as poll_terminal_event, read as read_terminal_event, DisableBracketedPaste,
+    DisableFocusChange, DisableMouseCapture, EnableBracketedPaste, EnableFocusChange,
+    EnableMouseCapture, Event as CrosstermEvent, KeyCode, KeyEventKind, KeyModifiers, MediaKeyCode,
+    ModifierKeyCode, MouseButton, MouseEventKind,
 };
-use crossterm::terminal::{disable_raw_mode, enable_raw_mode, size as terminal_size};
+use crossterm::terminal::{
+    disable_raw_mode, enable_raw_mode, size as terminal_size, EnterAlternateScreen,
+    LeaveAlternateScreen,
+};
 
 mod cmd;
 mod http;
@@ -112,6 +119,45 @@ extern "C" {
 
 static DEBUG_OR_EXPECT_CALLED: AtomicBool = AtomicBool::new(false);
 static mut ROC_HOST: *mut RocHost = core::ptr::null_mut();
+
+#[derive(Clone, Copy, Debug, Default)]
+struct TerminalState {
+    alternate_screen: bool,
+    bracketed_paste: bool,
+    cursor_hidden: bool,
+    focus_change_events: bool,
+    mouse_capture: bool,
+    raw_mode: bool,
+    session_active: bool,
+}
+
+impl TerminalState {
+    fn is_active(self) -> bool {
+        self.alternate_screen
+            || self.bracketed_paste
+            || self.cursor_hidden
+            || self.focus_change_events
+            || self.mouse_capture
+            || self.raw_mode
+            || self.session_active
+    }
+}
+
+static TERMINAL_STATE: Mutex<TerminalState> = Mutex::new(TerminalState {
+    alternate_screen: false,
+    bracketed_paste: false,
+    cursor_hidden: false,
+    focus_change_events: false,
+    mouse_capture: false,
+    raw_mode: false,
+    session_active: false,
+});
+
+fn terminal_state() -> MutexGuard<'static, TerminalState> {
+    TERMINAL_STATE
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
 
 fn set_roc_host(roc_host: *mut RocHost) {
     unsafe {
@@ -1092,6 +1138,229 @@ fn tty_event_from_crossterm(event: CrosstermEvent, roc_host: &RocHost) -> HostTt
             tty_raw_event(6, 0, 0, 0, 0, 0, RocStr::from_str(&text, roc_host))
         }
         _ => tty_raw_event(255, 0, 0, 0, 0, 0, RocStr::empty()),
+    }
+}
+
+fn execute_terminal_command(command: impl crossterm::Command) -> io::Result<()> {
+    let mut stdout = io::stdout().lock();
+    crossterm::execute!(stdout, command)
+}
+
+fn remember_cleanup_result(
+    result: io::Result<()>,
+    capability_active: &mut bool,
+    first_error: &mut Option<io::Error>,
+) {
+    match result {
+        Ok(()) => *capability_active = false,
+        Err(error) => {
+            if first_error.is_none() {
+                *first_error = Some(error);
+            }
+        }
+    }
+}
+
+trait TerminalCleanup {
+    fn disable_bracketed_paste(&mut self) -> io::Result<()>;
+    fn disable_focus_change(&mut self) -> io::Result<()>;
+    fn disable_mouse_capture(&mut self) -> io::Result<()>;
+    fn show_cursor(&mut self) -> io::Result<()>;
+    fn leave_alternate_screen(&mut self) -> io::Result<()>;
+    fn disable_raw_mode(&mut self) -> io::Result<()>;
+}
+
+struct CrosstermCleanup;
+
+impl TerminalCleanup for CrosstermCleanup {
+    fn disable_bracketed_paste(&mut self) -> io::Result<()> {
+        execute_terminal_command(DisableBracketedPaste)
+    }
+
+    fn disable_focus_change(&mut self) -> io::Result<()> {
+        execute_terminal_command(DisableFocusChange)
+    }
+
+    fn disable_mouse_capture(&mut self) -> io::Result<()> {
+        execute_terminal_command(DisableMouseCapture)
+    }
+
+    fn show_cursor(&mut self) -> io::Result<()> {
+        execute_terminal_command(Show)
+    }
+
+    fn leave_alternate_screen(&mut self) -> io::Result<()> {
+        execute_terminal_command(LeaveAlternateScreen)
+    }
+
+    fn disable_raw_mode(&mut self) -> io::Result<()> {
+        disable_raw_mode()
+    }
+}
+
+/// Attempt every restoration step, even if an earlier one fails. Flags are
+/// cleared only after a successful command so an explicit later `stop!` can
+/// retry capabilities whose state is uncertain.
+fn restore_terminal_state_with(
+    state: &mut TerminalState,
+    cleanup: &mut impl TerminalCleanup,
+) -> io::Result<()> {
+    let mut first_error = None;
+
+    if state.bracketed_paste {
+        remember_cleanup_result(
+            cleanup.disable_bracketed_paste(),
+            &mut state.bracketed_paste,
+            &mut first_error,
+        );
+    }
+    if state.focus_change_events {
+        remember_cleanup_result(
+            cleanup.disable_focus_change(),
+            &mut state.focus_change_events,
+            &mut first_error,
+        );
+    }
+    if state.mouse_capture {
+        remember_cleanup_result(
+            cleanup.disable_mouse_capture(),
+            &mut state.mouse_capture,
+            &mut first_error,
+        );
+    }
+    if state.cursor_hidden {
+        remember_cleanup_result(
+            cleanup.show_cursor(),
+            &mut state.cursor_hidden,
+            &mut first_error,
+        );
+    }
+    if state.alternate_screen {
+        remember_cleanup_result(
+            cleanup.leave_alternate_screen(),
+            &mut state.alternate_screen,
+            &mut first_error,
+        );
+    }
+    if state.raw_mode {
+        remember_cleanup_result(
+            cleanup.disable_raw_mode(),
+            &mut state.raw_mode,
+            &mut first_error,
+        );
+    }
+
+    state.session_active = state.alternate_screen
+        || state.bracketed_paste
+        || state.cursor_hidden
+        || state.focus_change_events
+        || state.mouse_capture
+        || state.raw_mode;
+
+    match first_error {
+        Some(error) => Err(error),
+        None => Ok(()),
+    }
+}
+
+fn restore_terminal_state(state: &mut TerminalState) -> io::Result<()> {
+    restore_terminal_state_with(state, &mut CrosstermCleanup)
+}
+
+fn restore_tracked_terminal() -> io::Result<()> {
+    restore_terminal_state(&mut terminal_state())
+}
+
+#[cfg(test)]
+mod terminal_cleanup_tests {
+    use super::*;
+
+    #[derive(Default)]
+    struct FakeCleanup {
+        calls: Vec<&'static str>,
+        fail_focus: bool,
+    }
+
+    impl TerminalCleanup for FakeCleanup {
+        fn disable_bracketed_paste(&mut self) -> io::Result<()> {
+            self.calls.push("paste");
+            Ok(())
+        }
+
+        fn disable_focus_change(&mut self) -> io::Result<()> {
+            self.calls.push("focus");
+            if self.fail_focus {
+                Err(io::Error::other("focus cleanup failed"))
+            } else {
+                Ok(())
+            }
+        }
+
+        fn disable_mouse_capture(&mut self) -> io::Result<()> {
+            self.calls.push("mouse");
+            Ok(())
+        }
+
+        fn show_cursor(&mut self) -> io::Result<()> {
+            self.calls.push("cursor");
+            Ok(())
+        }
+
+        fn leave_alternate_screen(&mut self) -> io::Result<()> {
+            self.calls.push("screen");
+            Ok(())
+        }
+
+        fn disable_raw_mode(&mut self) -> io::Result<()> {
+            self.calls.push("raw");
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn cleanup_attempts_every_capability_and_retains_failures_for_retry() {
+        let mut state = TerminalState {
+            alternate_screen: true,
+            bracketed_paste: true,
+            cursor_hidden: true,
+            focus_change_events: true,
+            mouse_capture: true,
+            raw_mode: true,
+            session_active: true,
+        };
+        let mut cleanup = FakeCleanup {
+            fail_focus: true,
+            ..FakeCleanup::default()
+        };
+
+        assert!(restore_terminal_state_with(&mut state, &mut cleanup).is_err());
+        assert_eq!(
+            cleanup.calls,
+            ["paste", "focus", "mouse", "cursor", "screen", "raw"]
+        );
+        assert!(state.focus_change_events);
+        assert!(state.session_active);
+        assert!(!state.alternate_screen);
+        assert!(!state.bracketed_paste);
+        assert!(!state.cursor_hidden);
+        assert!(!state.mouse_capture);
+        assert!(!state.raw_mode);
+
+        cleanup.fail_focus = false;
+        cleanup.calls.clear();
+        assert!(restore_terminal_state_with(&mut state, &mut cleanup).is_ok());
+        assert_eq!(cleanup.calls, ["focus"]);
+        assert!(!state.is_active());
+    }
+
+    #[test]
+    fn cleanup_is_idempotent_when_nothing_is_active() {
+        let mut state = TerminalState::default();
+        let mut cleanup = FakeCleanup::default();
+
+        assert!(restore_terminal_state_with(&mut state, &mut cleanup).is_ok());
+        assert!(cleanup.calls.is_empty());
+        assert!(!state.is_active());
     }
 }
 
@@ -2232,7 +2501,10 @@ pub extern "C" fn hosted_stdout_write_bytes(bytes: RocListWith<u8, false>) -> St
 pub extern "C" fn hosted_tty_disable_raw_mode() -> TtyUnitResult {
     let roc_host = roc_host();
     match disable_raw_mode() {
-        Ok(()) => try_tty_unit_ok(),
+        Ok(()) => {
+            terminal_state().raw_mode = false;
+            try_tty_unit_ok()
+        }
         Err(error) => try_tty_unit_err(tty_io_err_from_io(&error, roc_host)),
     }
 }
@@ -2241,7 +2513,10 @@ pub extern "C" fn hosted_tty_disable_raw_mode() -> TtyUnitResult {
 pub extern "C" fn hosted_tty_enable_raw_mode() -> TtyUnitResult {
     let roc_host = roc_host();
     match enable_raw_mode() {
-        Ok(()) => try_tty_unit_ok(),
+        Ok(()) => {
+            terminal_state().raw_mode = true;
+            try_tty_unit_ok()
+        }
         Err(error) => try_tty_unit_err(tty_io_err_from_io(&error, roc_host)),
     }
 }
@@ -2268,6 +2543,83 @@ pub extern "C" fn hosted_tty_read_event(timeout_milliseconds: u64) -> HostTtyRea
         },
         Err(error) => try_tty_read_event_err(tty_io_err_from_io(&error, roc_host)),
     }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tty_start(options: HostTtyStartArgs) -> TtyUnitResult {
+    let roc_host = roc_host();
+    let mut tracked = terminal_state();
+
+    if tracked.is_active() {
+        return try_tty_unit_err(tty_io_err_other(
+            "a terminal session is already active; call Tty.stop! before starting another",
+            roc_host,
+        ));
+    }
+
+    let mut started = TerminalState {
+        session_active: true,
+        ..TerminalState::default()
+    };
+
+    let start_result = (|| -> io::Result<()> {
+        if options.raw_mode {
+            enable_raw_mode()?;
+            started.raw_mode = true;
+        }
+        if options.alternate_screen {
+            execute_terminal_command(EnterAlternateScreen)?;
+            started.alternate_screen = true;
+        }
+        if !options.cursor_visible {
+            execute_terminal_command(Hide)?;
+            started.cursor_hidden = true;
+        }
+        if options.mouse_capture {
+            execute_terminal_command(EnableMouseCapture)?;
+            started.mouse_capture = true;
+        }
+        if options.focus_change_events {
+            execute_terminal_command(EnableFocusChange)?;
+            started.focus_change_events = true;
+        }
+        if options.bracketed_paste {
+            execute_terminal_command(EnableBracketedPaste)?;
+            started.bracketed_paste = true;
+        }
+        Ok(())
+    })();
+
+    match start_result {
+        Ok(()) => {
+            *tracked = started;
+            try_tty_unit_ok()
+        }
+        Err(error) => {
+            let _ = restore_terminal_state(&mut started);
+            *tracked = started;
+            try_tty_unit_err(tty_io_err_from_io(&error, roc_host))
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tty_stop() -> TtyUnitResult {
+    let roc_host = roc_host();
+    match restore_tracked_terminal() {
+        Ok(()) => try_tty_unit_ok(),
+        Err(error) => try_tty_unit_err(tty_io_err_from_io(&error, roc_host)),
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tty_stdin_is_terminal() -> bool {
+    io::stdin().is_terminal()
+}
+
+#[no_mangle]
+pub extern "C" fn hosted_tty_stdout_is_terminal() -> bool {
+    io::stdout().is_terminal()
 }
 
 // TODO(https://github.com/roc-lang/roc/issues/10163): revert to a bare u128
@@ -2314,6 +2666,7 @@ pub extern "C" fn roc_expect_failed(bytes: *const u8, len: usize) {
 
 #[no_mangle]
 pub extern "C" fn roc_crashed(bytes: *const u8, len: usize) {
+    let _ = restore_tracked_terminal();
     DefaultHandlers::roc_crashed(roc_host_ptr(), bytes, len);
 }
 
@@ -2379,6 +2732,7 @@ pub fn rust_main(argc: i32, argv: *const *const c_char) -> i32 {
 
     let args_list = build_args_list(argc, argv, &roc_host);
     let mut exit_code = unsafe { roc_main(args_list) };
+    let _ = restore_tracked_terminal();
 
     if DEBUG_OR_EXPECT_CALLED.load(Ordering::Acquire) && exit_code == 0 {
         exit_code = 1;

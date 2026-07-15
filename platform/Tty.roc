@@ -6,6 +6,51 @@ import InternalTty
 ## This is useful for running an app like vim or a game in the terminal.
 Tty :: [].{
 
+	## Terminal capabilities enabled for a full-screen session.
+	SessionOptions : {
+		alternate_screen : Bool,
+		bracketed_paste : Bool,
+		cursor_visible : Bool,
+		focus_change_events : Bool,
+		mouse_capture : Bool,
+		raw_mode : Bool,
+	}
+
+	## Practical defaults for a keyboard-driven full-screen application.
+	## Mouse capture is opt-in because it changes terminal text selection.
+	default_session_options : SessionOptions
+	default_session_options = {
+		alternate_screen: Bool.True,
+		bracketed_paste: Bool.True,
+		cursor_visible: Bool.False,
+		focus_change_events: Bool.True,
+		mouse_capture: Bool.False,
+		raw_mode: Bool.True,
+	}
+
+	## Start a terminal session and enable the requested capabilities.
+	##
+	## Startup is transactional: if a capability cannot be enabled, the host
+	## makes a best-effort attempt to undo everything enabled by this call.
+	## Starting while a session or legacy raw mode is active returns `TtyErr`.
+	start! : SessionOptions => Try({}, [TtyErr(IOErr), ..])
+	start! = |options| widen_tty_err(Host.tty_start!(options))
+
+	## Restore every terminal capability enabled through this module.
+	##
+	## Calling `stop!` when nothing is active succeeds. If restoration partially
+	## fails, a later call retries the capabilities that may still be active.
+	stop! : () => Try({}, [TtyErr(IOErr), ..])
+	stop! = || widen_tty_err(Host.tty_stop!())
+
+	## Return whether standard input is attached to a terminal.
+	stdin_is_terminal! : () => Bool
+	stdin_is_terminal! = || Host.tty_stdin_is_terminal!()
+
+	## Return whether standard output is attached to a terminal.
+	stdout_is_terminal! : () => Bool
+	stdout_is_terminal! = || Host.tty_stdout_is_terminal!()
+
 	## Modifier keys held while a key or mouse event occurred.
 	Modifiers : {
 		alt : Bool,

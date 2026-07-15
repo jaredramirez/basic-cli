@@ -7,7 +7,27 @@
 
 A Roc [platform](https://github.com/roc-lang/roc/wiki/Roc-concepts-explained#platform) for command-line programs.
 
-`basic-cli` supports command execution, directories, environment variables, files, HTTP, locales, paths, random seeds, sleeping, SQLite, standard input/output/error, TCP, terminal raw mode, and UTC time.
+`basic-cli` supports command execution, directories, environment variables, files, HTTP, locales, paths, random seeds, sleeping, SQLite, standard input/output/error, TCP, full-screen terminal sessions and typed events, and UTC time.
+
+## Terminal applications
+
+`Tty.start!` configures raw mode, the alternate screen, cursor visibility,
+mouse capture, focus events, and bracketed paste as one transactional session.
+`Tty.read_event!` waits up to a caller-provided timeout for a decoded key,
+mouse, resize, focus, or paste event, while `Tty.size!` reports the current
+terminal dimensions. Use `Tty.stdin_is_terminal!` and
+`Tty.stdout_is_terminal!` before starting an interactive UI.
+
+```roc
+Tty.start!(Tty.default_session_options)?
+event = Tty.read_event!(100)?
+Tty.stop!()?
+```
+
+`Tty.stop!` is idempotent and should be called before propagating application
+errors. The native host also makes a best-effort restoration attempt after the
+Roc program returns and immediately before a Roc crash exits the process. This
+does not cover external termination such as `SIGKILL` or power loss.
 
 ## Examples
 
